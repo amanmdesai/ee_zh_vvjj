@@ -19,26 +19,41 @@ import matplotlib.pyplot as plt
 import pickle
 
 import pandas as pd
-from config import path, final_states, vars
-from config import proc_Hbb, proc_Hcc, proc_Hss, proc_Hgg, proc_Htautau, proc_HWW, proc_HZZ
+
+import argparse
+import importlib
+
+# Parse command line arguments
+parser = argparse.ArgumentParser(description="Load config file.")
+parser.add_argument("config_file", help="Configuration file to load.")
+args = parser.parse_args()
+
+
+# Import config file
+# Import config file
+config_file_path = args.config_file
+config_dir, config_file_name = os.path.split(config_file_path)
+config_module_name = config_file_name.rstrip(".py")
+
+# Add the config directory to sys.path to ensure the config module can be found
+sys.path.append(config_dir)
+config = importlib.import_module(config_module_name)
+
+final_states = config.final_states
+path = config.path
+vars = config.vars
+processes = config.processes
+v = config.v
+ncpus = config.ncpus
 
 print(xgb.__version__)
 
 nclass = max(list(final_states.values())) + 1
 
-ncpus = 48
-
-v = "v2"
-
-list_df = [
-    proc_Hbb.df(vars),
-    proc_Hcc.df(vars),
-    proc_Hss.df(vars),
-    proc_Hgg.df(vars),
-    proc_Htautau.df(vars),
-    proc_HWW.df(vars),
-    proc_HZZ.df(vars),
-]
+## produce dataframes
+list_df = []
+for proc in processes:
+    list_df.append(proc.df(vars))
 
 # concatenate data from all three trees
 df = pd.concat(list_df)
@@ -48,7 +63,7 @@ X = df[vars].values
 Y = df["target"].values
 
 # split data into training and testing sets
-X_train, X_test, Y_train, Y_test = train_test_split(X, Y, test_size=0.2, random_state=42)
+X_train, X_test, Y_train, Y_test = train_test_split(X, Y, test_size=0.1, random_state=42)
 
 os.environ["OMP_NUM_THREADS"] = "{}".format(ncpus)
 # define xgboost classifier
@@ -58,7 +73,7 @@ xgb_model = xgb.XGBClassifier(objective="multi:softproba", num_classes=nclass, n
 # train the classifier on the training set
 eval_set = [(X_train, Y_train), (X_test, Y_test)]
 xgb_model.fit(
-    X_train, Y_train, early_stopping_rounds=10, eval_metric=["merror", "mlogloss"], eval_set=eval_set, verbose=True
+    X_train, Y_train, early_stopping_rounds=5, eval_metric=["merror", "mlogloss"], eval_set=eval_set, verbose=True
 )
 
 # save the model to a file using pickle
@@ -110,14 +125,14 @@ cm_unnorm = confusion_matrix(Y_test, Y_pred)
 cm = cm_unnorm.astype("float") / cm_unnorm.sum(axis=1)[:, np.newaxis]
 
 # plot confusion matrix
-fig, ax = plt.subplots(figsize=(5, 5))
+fig, ax = plt.subplots(figsize=(10, 10))
 im = ax.imshow(cm, interpolation="nearest", cmap=plt.cm.Blues)
 ax.figure.colorbar(im, ax=ax)
 ax.set(
     xticks=np.arange(cm.shape[1]),
     yticks=np.arange(cm.shape[0]),
-    xticklabels=["Hbb", "Hcc", "Hss", "Hgg", "Htautau", "HWW/HZZ"],
-    yticklabels=["Hbb", "Hcc", "Hss", "Hgg", "Htautau", "HWW/HZZ"],
+    xticklabels=final_states.keys(),
+    yticklabels=final_states.keys(),
     ylabel="True label",
     xlabel="Predicted label",
 )
@@ -130,7 +145,7 @@ for i in range(cm.shape[0]):
         ax.text(
             j,
             i,
-            format(cm[i, j], ".3f"),
+            format(cm[i, j], ".2f"),
             ha="center",
             va="center",
             color="white" if cm[i, j] > cm.max() / 2.0 else "black",

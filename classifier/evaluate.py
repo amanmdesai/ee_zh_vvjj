@@ -11,16 +11,33 @@ import os
 import glob
 import ROOT
 
-from config import path, final_states, class_labels, vars
-from config import (
-    proc_Hbb,
-    proc_Hcc,
-    proc_Hss,
-    proc_Hgg,
-    proc_Htautau,
-    proc_HWW,
-    proc_HZZ,
-)
+
+import argparse
+import importlib
+
+# Parse command line arguments
+parser = argparse.ArgumentParser(description="Load config file.")
+parser.add_argument("config_file", help="Configuration file to load.")
+args = parser.parse_args()
+
+
+# Import config file
+# Import config file
+config_file_path = args.config_file
+config_dir, config_file_name = os.path.split(config_file_path)
+config_module_name = config_file_name.rstrip(".py")
+
+# Add the config directory to sys.path to ensure the config module can be found
+sys.path.append(config_dir)
+config = importlib.import_module(config_module_name)
+
+final_states = config.final_states
+path = config.path
+vars = config.vars
+processes = config.processes
+v = config.v
+ncpus = config.ncpus
+
 
 # Define the function to evaluate the model on a single root file
 def evaluate_process(model, proc_dir, score_tag):
@@ -41,8 +58,11 @@ def evaluate_process(model, proc_dir, score_tag):
         scores = model.predict_proba(data[vars])
 
         # Add the predicted class to the data
-        for i, name in enumerate(class_labels):
-            data[name] = scores[:, i]
+        maxval = 1e99
+        minval = -1e99
+        for i, name in enumerate(final_states.keys()):
+            data[name] = np.log10(scores[:, i] / (1 - scores[:, i]))
+            # data[name] = scores[:, i]
 
         file_out = "{}/{}".format(score_dir, os.path.basename(file_in))
         ufile_out = up.recreate(file_out)
@@ -60,11 +80,12 @@ def evaluate_process(model, proc_dir, score_tag):
 
 
 # Load the trained model from file
-with open("model.pkl", "rb") as f:
+with open("model_{}.pkl".format(v), "rb") as f:
     model = pickle.load(f)
 
 
 processes = [
+    "wzp6_ee_nunuH_Hbb_ecm240",
     "wzp6_ee_nunuH_Hcc_ecm240",
     "wzp6_ee_nunuH_Hgg_ecm240",
     "wzp6_ee_nunuH_Hss_ecm240",
@@ -77,18 +98,8 @@ processes = [
     "p8_ee_Zqq_ecm240",
 ]
 
-"""
-processes = [
-    "p8_ee_WW_ecm240",
-    "p8_ee_ZZ_ecm240",
-    "p8_ee_Zqq_ecm240",
-]
 
-processes = [
-    "wzp6_ee_nunuH_Hbb_ecm240",
-]
-"""
-score_tag = "score3"
+score_tag = "score_{}".format(v)
 for proc in processes:
     proc_dir = "{}/{}".format(path, proc)
     print("producing process: {} .. ".format(proc))
