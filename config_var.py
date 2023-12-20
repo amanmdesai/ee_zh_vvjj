@@ -49,7 +49,11 @@ class Selection:
 # __________________________________________________________________________________________________
 ## all MC processes are defined here
 
-path = "/eos/experiment/fcc/ee/analyses/case-studies/higgs/flat_trees/zh_vvjj_v22"
+path = (
+    "/eos/experiment/fcc/ee/analyses/case-studies/higgs/flat_trees/zh_vvjj_var"
+)
+#path = "/eos/experiment/fcc/ee/analyses/case-studies/higgs/flat_trees/zh_vvjj_var_v2"
+path = "/eos/experiment/fcc/ee/analyses/case-studies/higgs/flat_trees/zh_vvjj_var_v3"
 processes = []
 
 
@@ -79,6 +83,62 @@ hss = Process(
     1.0,
     5e6,
 )
+
+hdd = Process(
+    "Hdd",
+    "{}/wzp6_ee_nunuH_Hdd_ecm240/*.root".format(path),
+    "H #rightarrow d d",
+    9.702e-09,
+    1.0,
+    5e6,
+)
+
+huu = Process(
+    "Huu",
+    "{}/wzp6_ee_nunuH_Huu_ecm240/*.root".format(path),
+    "H #rightarrow u u",
+    4.158e-09,
+    1.0,
+    5e6,
+)
+
+hbs = Process(
+    "Hbs",
+    "{}/wzp6_ee_nunuH_Hbs_ecm240/*.root".format(path),
+    "H #rightarrow b s",
+    1e-10,
+    1.0,
+    5e6,
+)
+
+
+hbd = Process(
+    "Hbd",
+    "{}/wzp6_ee_nunuH_Hbd_ecm240/*.root".format(path),
+    "H #rightarrow b d",
+    1e-12,
+    1.0,
+    5e6,
+)
+
+hcu = Process(
+    "Hcu",
+    "{}/wzp6_ee_nunuH_Hcu_ecm240/*.root".format(path),
+    "H #rightarrow c u",
+    1e-14,
+    1.0,
+    5e6,
+)
+
+hsd = Process(
+    "Hsd",
+    "{}/wzp6_ee_nunuH_Hsd_ecm240/*.root".format(path),
+    "H #rightarrow s d",
+    1e-19,
+    1.0,
+    5e6,
+)
+
 hgg = Process(
     "Hgg",
     "{}/wzp6_ee_nunuH_Hgg_ecm240/*.root".format(path),
@@ -87,6 +147,7 @@ hgg = Process(
     1.0,
     5e6,
 )
+
 htautau = Process(
     "Htautau",
     "{}/wzp6_ee_nunuH_Htautau_ecm240/*.root".format(path),
@@ -149,6 +210,8 @@ qqh = Process(
 processes.append(hbb)
 processes.append(hcc)
 processes.append(hss)
+processes.append(huu)
+processes.append(hdd)
 processes.append(hgg)
 processes.append(htautau)
 processes.append(hww)
@@ -172,9 +235,10 @@ def category_selection(fs, cuts):
 
     return ortho_sel + purity_sel
 
+vars = ["ip", "res", "dndx", "tof"]
+scale_factors = [1.0, 2.0, 3.0, 5.0, 10.0]
+#scale_factors = [1.0]
 
-vars = ["ip", "res"]
-scale_factors = [1.0, 1.5, 2.0, 3.0]
 labels = []
 selection_tree_dict = dict()
 h1s_dict = dict()
@@ -190,9 +254,16 @@ for var in vars:
             "C_{}".format(label),
             "S_{}".format(label),
             "G_{}".format(label),
-            "Q_{}".format(label),
+            "U_{}".format(label),
+            "D_{}".format(label),
+            "TAU_{}".format(label),
+          
         ]
-        purities = ["L_{}".format(label), "M_{}".format(label), "H_{}".format(label)]
+        purities = [
+            "L_{}".format(label),
+            "M_{}".format(label),
+            "H_{}".format(label),
+        ]
 
         sel_base = {
             "name": "base_{}".format(label),
@@ -219,6 +290,15 @@ for var in vars:
         purity[("G_{}".format(label), "L_{}".format(label))] = (-999, 1.2)
         purity[("G_{}".format(label), "M_{}".format(label))] = (1.2, 1.5)
         purity[("G_{}".format(label), "H_{}".format(label))] = (1.5, 999)
+        purity[("U_{}".format(label), "L_{}".format(label))] = (-999, 1.1)
+        purity[("U_{}".format(label), "M_{}".format(label))] = (1.1, 1.7)
+        purity[("U_{}".format(label), "H_{}".format(label))] = (1.7, 999)
+        purity[("D_{}".format(label), "L_{}".format(label))] = (-999, 1.1)
+        purity[("D_{}".format(label), "M_{}".format(label))] = (1.1, 1.7)
+        purity[("D_{}".format(label), "H_{}".format(label))] = (1.7, 999)
+        purity[("TAU_{}".format(label), "L_{}".format(label))] = (-999, 1.1)
+        purity[("TAU_{}".format(label), "M_{}".format(label))] = (1.1, 1.7)
+        purity[("TAU_{}".format(label), "H_{}".format(label))] = (1.7, 999)
 
         sel_dummy = {
             "name": "",
@@ -228,11 +308,14 @@ for var in vars:
         }
 
         ## generate final selection cuts
-        fs_categories = [s for s in scores if s != "Q_{}".format(label)]
+        # fs_categories = [s for s in scores if s != "Q_{}".format(label)]
+        fs_categories = scores
         for fs in fs_categories:
             for p in purities:
                 sel = deepcopy(sel_dummy)
-                sel["name"] = "{}like_{}".format(fs.replace("_{}".format(label), ""), p)
+                sel["name"] = "{}like_{}".format(
+                    fs.replace("_{}".format(label), ""), p
+                )
 
                 sel["formula"] = category_selection(fs, purity[(fs, p)])
                 print(sel["name"], sel["formula"])
@@ -256,10 +339,10 @@ for var in vars:
                 "name": "h2",
                 "var_x": "M_jj_{}".format(label),
                 "var_y": "Mrec_jj_{}".format(label),
-                "nbins_x": 400,
+                "nbins_x": 200,
                 "xmin": 0,
                 "xmax": 200,
-                "nbins_y": 400,
+                "nbins_y": 40,
                 "ymin": 0,
                 "ymax": 200,
                 "xtitle": "m_{jj} [GeV]",

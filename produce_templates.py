@@ -32,7 +32,9 @@ def selection_dfs(df, proc, sel, h1s, h2s):
             (
                 # "{}_{}".format(h2["name"], sel["name"]),
                 "{}_{}".format(h2["name"], proc.name),
-                "{};{};{};{}".format(h2["name"], h2["xtitle"], h2["ytitle"], ""),
+                "{};{};{};{}".format(
+                    h2["name"], h2["xtitle"], h2["ytitle"], ""
+                ),
                 h2["nbins_x"],
                 h2["xmin"],
                 h2["xmax"],
@@ -84,19 +86,28 @@ for proc in processes:
 ROOT.RDF.RunGraphs(df_list)
 
 ## now store histograms in ROOT files
-rdir = "/eos/user/s/selvaggi/analysis/zh_vvjj/templates2D/validation/"
 ldir = "output"
+rdir = (
+    "/eos/experiment/fcc/ee/analyses/case-studies/higgs/templates/variations_v2"
+)
 os.system("mkdir -p {}".format(ldir))
+os.system("mkdir -p {}".format(rdir))
 
 for sel in selection_tree.children:
 
-    fname = "{}/{}_hist2D.root".format(ldir, sel.value["name"])
+    fname = "{}_hist2D.root".format(sel.value["name"])
+    fpath = "{}/{}".format(ldir, fname)
+
     tf = ROOT.TFile.Open(
-        fname,
+        fpath,
         "RECREATE",
     )
     for proc in processes:
         for df in df_dict[proc.name][sel.value["name"]]:
             df.Write()
 
-    os.system("cp {} {}".format(fname, rdir))
+    os.system(
+        "python /afs/cern.ch/work/f/fccsw/public/FCCutils/eoscopy.py {} {}/{}".format(
+            fpath, rdir, fname
+        )
+    )

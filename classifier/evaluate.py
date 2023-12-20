@@ -1,6 +1,5 @@
 import sys
-
-sys.path.insert(0, "/afs/cern.ch/user/s/selvaggi/.local/lib/python3.9/site-packages")
+sys.path.insert(0, "/afs/cern.ch/user/s/selvaggi/.local/lib/python3.10/site-packages")
 
 import pandas as pd
 import xgboost as xgb
@@ -11,7 +10,7 @@ import os
 import glob
 import ROOT
 
-
+import concurrent.futures
 import argparse
 import importlib
 
@@ -33,11 +32,61 @@ config = importlib.import_module(config_module_name)
 
 final_states = config.final_states
 path = config.path
-vars = config.vars
-processes = config.processes
+vars = config.training_vars
+svars = config.spectator_vars
+processes = config.evaluate_processes
 v = config.v
 ncpus = config.ncpus
 
+print(xgb.__version__)
+print(up.__version__)
+
+# Define the function to evaluate the model on a single root file
+def evaluate_file(model, file_in):
+    proc_dir = os.path.dirname(file_in)
+    score_dir = "{}_{}".format(proc_dir, score_tag)
+    os.system("mkdir -p {}".format(score_dir))
+    print(file_in)
+    
+    fileup = up.open(file_in)
+    tree = fileup["events"]
+    #print(tree.keys())
+    #data = tree.arrays(vars, library="pd")
+    data = tree.arrays(svars, library="pd")
+    
+    #dfs = up.iterate("{}:events".format(file_in), library="pd") 
+    #data = pd.concat(dfs, ignore_index=True)
+
+    # Get the variables for classification
+    
+    scores = model.predict_proba(data[vars])
+
+    # Add the predicted class to the data
+    maxval = 1e99
+    minval = -1e99
+       
+    for i, name in enumerate(final_states.keys()):
+        scores_i = scores[:, i]
+        data[name] = np.where(scores_i <= 0, -15,
+            np.where(scores_i >= 1, 15,
+            np.log10(scores_i / (1 - scores_i))))   
+
+
+    #print(data)    
+    file_out = "{}/{}".format(score_dir, os.path.basename(file_in))
+    print(file_out)
+    ufile_out = up.recreate(file_out)
+    ufile_out["events"] = data
+
+    rfile_in = ROOT.TFile(file_in)
+    tparam = rfile_in.eventsProcessed
+    
+    print("writing file {} ... ".format(file_out))
+
+    rfile_out = ROOT.TFile(file_out, "update")
+    tparam.Write()
+    rfile_out.Close()
+      
 
 # Define the function to evaluate the model on a single root file
 def evaluate_process(model, proc_dir, score_tag):
@@ -48,6 +97,8 @@ def evaluate_process(model, proc_dir, score_tag):
     score_dir = "{}_{}".format(proc_dir, score_tag)
     os.system("mkdir -p {}".format(score_dir))
 
+    print("mkdir -p {}".format(score_dir))
+    
     for file_in in files:
 
         dfs = up.iterate("{}:events".format(file_in), library="pd")
@@ -60,9 +111,15 @@ def evaluate_process(model, proc_dir, score_tag):
         # Add the predicted class to the data
         maxval = 1e99
         minval = -1e99
+        
+        
         for i, name in enumerate(final_states.keys()):
-            data[name] = np.log10(scores[:, i] / (1 - scores[:, i]))
-            # data[name] = scores[:, i]
+
+            scores_i = scores[:, i]
+            # Apply the conditions
+            data[name] = np.where(scores_i <= 0, -15,
+             np.where(scores_i >= 1, 15,
+             np.log10(scores_i / (1 - scores_i))))
 
         file_out = "{}/{}".format(score_dir, os.path.basename(file_in))
         ufile_out = up.recreate(file_out)
@@ -77,30 +134,25 @@ def evaluate_process(model, proc_dir, score_tag):
         rfile_out = ROOT.TFile(file_out, "update")
         tparam.Write()
         rfile_out.Close()
+    
 
 
 # Load the trained model from file
 with open("model_{}.pkl".format(v), "rb") as f:
     model = pickle.load(f)
 
-
-processes = [
-    "wzp6_ee_nunuH_Hbb_ecm240",
-    "wzp6_ee_nunuH_Hcc_ecm240",
-    "wzp6_ee_nunuH_Hgg_ecm240",
-    "wzp6_ee_nunuH_Hss_ecm240",
-    "wzp6_ee_nunuH_Htautau_ecm240",
-    "wzp6_ee_nunuH_HWW_ecm240",
-    "wzp6_ee_nunuH_HZZ_ecm240",
-    "wzp6_ee_qqH_ecm240",
-    "p8_ee_WW_ecm240",
-    "p8_ee_ZZ_ecm240",
-    "p8_ee_Zqq_ecm240",
-]
-
-
 score_tag = "score_{}".format(v)
+
+files = []
 for proc in processes:
-    proc_dir = "{}/{}".format(path, proc)
-    print("producing process: {} .. ".format(proc))
-    evaluate_process(model, proc_dir, score_tag)
+    print(proc)
+    proc_dir = os.path.dirname(proc.files)    
+    proc_files = glob.glob("{}/*.root".format(proc_dir))
+    
+    for f in proc_files:
+        files.append(f)
+        
+
+with concurrent.futures.ThreadPoolExecutor() as executor:
+    # Use a lambda to include model in function arguments
+    executor.map(lambda file_in: evaluate_file(model, file_in), files)

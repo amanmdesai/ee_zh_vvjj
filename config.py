@@ -49,12 +49,15 @@ class Selection:
 # __________________________________________________________________________________________________
 ## all MC processes are defined here
 
-path = "/eos/experiment/fcc/ee/analyses/case-studies/higgs/flat_trees/zh_vvjj_v2"
+path = (
+    "/eos/experiment/fcc/ee/analyses/case-studies/higgs/flat_trees/zh_vvjj_v2"
+)
+# path = "/eos/experiment/fcc/ee/analyses/case-studies/higgs/flat_trees/zh_vvjj_var"
 processes = []
 
 hbb = Process(
     "Hbb",
-    "{}/wzp6_ee_nunuH_Hbb_ecm240_score2/*.root".format(path),
+    "{}/wzp6_ee_nunuH_Hbb_ecm240/*.root".format(path),
     "H #rightarrow b b",
     0.0269,
     1.0,
@@ -63,7 +66,7 @@ hbb = Process(
 
 hcc = Process(
     "Hcc",
-    "{}/wzp6_ee_nunuH_Hcc_ecm240_score2/*.root".format(path),
+    "{}/wzp6_ee_nunuH_Hcc_ecm240/*.root".format(path),
     "H #rightarrow c c",
     0.001335,
     1.0,
@@ -72,7 +75,7 @@ hcc = Process(
 
 hss = Process(
     "Hss",
-    "{}/wzp6_ee_nunuH_Hss_ecm240_score2/*.root".format(path),
+    "{}/wzp6_ee_nunuH_Hss_ecm240/*.root".format(path),
     "H #rightarrow s s",
     1.109e-05,
     1.0,
@@ -80,7 +83,7 @@ hss = Process(
 )
 hgg = Process(
     "Hgg",
-    "{}/wzp6_ee_nunuH_Hgg_ecm240_score2/*.root".format(path),
+    "{}/wzp6_ee_nunuH_Hgg_ecm240/*.root".format(path),
     "H #rightarrow g g",
     0.003782,
     1.0,
@@ -88,7 +91,7 @@ hgg = Process(
 )
 htautau = Process(
     "Htautau",
-    "{}/wzp6_ee_nunuH_Htautau_ecm240_score2/*.root".format(path),
+    "{}/wzp6_ee_nunuH_Htautau_ecm240/*.root".format(path),
     "H #rightarrow #tau #tau",
     0.002897,
     1.0,
@@ -96,7 +99,7 @@ htautau = Process(
 )
 hww = Process(
     "HWW",
-    "{}/wzp6_ee_nunuH_HWW_ecm240_score2/*.root".format(path),
+    "{}/wzp6_ee_nunuH_HWW_ecm240/*.root".format(path),
     "H #rightarrow W W",
     0.00994,
     1.0,
@@ -104,7 +107,7 @@ hww = Process(
 )
 hzz = Process(
     "HZZ",
-    "{}/wzp6_ee_nunuH_HZZ_ecm240_score2/*.root".format(path),
+    "{}/wzp6_ee_nunuH_HZZ_ecm240/*.root".format(path),
     "H #rightarrow Z Z",
     0.00122,
     1.0,
@@ -113,7 +116,7 @@ hzz = Process(
 
 ww = Process(
     "WW",
-    "{}/p8_ee_WW_ecm240_score2/*.root".format(path),
+    "{}/p8_ee_WW_ecm240/*.root".format(path),
     "W W",
     16.4385,
     1.0,
@@ -121,7 +124,7 @@ ww = Process(
 )
 zz = Process(
     "ZZ",
-    "{}/p8_ee_ZZ_ecm240_score2/*.root".format(path),
+    "{}/p8_ee_ZZ_ecm240/*.root".format(path),
     "Z Z",
     1.35899,
     1.0,
@@ -129,7 +132,7 @@ zz = Process(
 )
 zqq = Process(
     "Zqq",
-    "{}/p8_ee_Zqq_ecm240_score2/*.root".format(path),
+    "{}/p8_ee_Zqq_ecm240/*.root".format(path),
     "Z",
     52.6539,
     1.0,
@@ -137,13 +140,12 @@ zqq = Process(
 )
 qqh = Process(
     "qqH",
-    "{}/wzp6_ee_qqH_ecm240_score2/*.root".format(path),
+    "{}/wzp6_ee_qqH_ecm240/*.root".format(path),
     "Z(had) H ",
     0.13635,
     1.0,
     5e6,
 )
-
 
 processes.append(hbb)
 processes.append(hcc)
@@ -160,6 +162,7 @@ processes.append(qqh)
 ### now produce selections #######
 
 scores = ["B", "C", "S", "G", "Q"]
+# scores = ["B", "C", "S", "G"]
 purities = ["L", "M", "H"]
 
 
@@ -198,6 +201,9 @@ purity[("S", "H")] = (1.7, 999)
 purity[("G", "L")] = (-999, 1.2)
 purity[("G", "M")] = (1.2, 1.5)
 purity[("G", "H")] = (1.5, 999)
+purity[("Q", "L")] = (-999, 1.1)
+purity[("Q", "M")] = (1.1, 1.7)
+purity[("Q", "H")] = (1.7, 999)
 
 
 sel_dummy = {
@@ -208,7 +214,8 @@ sel_dummy = {
 }
 
 ## generate final selection cuts
-fs_categories = [s for s in scores if s != "Q"]
+# fs_categories = [s for s in scores if s != "Q"]
+fs_categories = scores
 for fs in fs_categories:
     for p in purities:
         sel = deepcopy(sel_dummy)

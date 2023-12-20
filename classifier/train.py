@@ -1,7 +1,7 @@
 import glob
 import sys
 
-sys.path.insert(0, "/afs/cern.ch/user/s/selvaggi/.local/lib/python3.9/site-packages")
+sys.path.insert(0, "/afs/cern.ch/user/s/selvaggi/.local/lib/python3.10/site-packages")
 
 # import necessary libraries
 import numpy as np
@@ -42,7 +42,7 @@ config = importlib.import_module(config_module_name)
 final_states = config.final_states
 path = config.path
 vars = config.vars
-processes = config.processes
+processes = config.train_processes
 v = config.v
 ncpus = config.ncpus
 
@@ -50,31 +50,58 @@ print(xgb.__version__)
 
 nclass = max(list(final_states.values())) + 1
 
-## produce dataframes
-list_df = []
-for proc in processes:
-    list_df.append(proc.df(vars))
+# name of df h5 file
+df_path = "{}/df_{}.h5".format(path,v)
 
-# concatenate data from all three trees
-df = pd.concat(list_df)
+## produce dataframes only if not already produced, else read from file
+if not os.path.exists(df_path):
+    print("reading already produced dataframe:") 
+    list_df = []
+    for proc in processes:
+        print(proc.name)
+        list_df.append(proc.df(vars))
+
+    # concatenate data from all three trees
+    df = pd.concat(list_df)
+    df.to_hdf(df_path, key='df', mode='w')
+
+else:   
+    print("reading already produced dataframe:") 
+    print(df_path)  
+    df = pd.read_hdf(df_path, 'df')
+
 
 # extract feature and target arrays from dataframe
+print("extract feature and target arrays from dataframe ...")
 X = df[vars].values
 Y = df["target"].values
 
 # split data into training and testing sets
+print("splitting train and test ...")
 X_train, X_test, Y_train, Y_test = train_test_split(X, Y, test_size=0.1, random_state=42)
 
-os.environ["OMP_NUM_THREADS"] = "{}".format(ncpus)
+#os.environ["OMP_NUM_THREADS"] = "{}".format(ncpus)
+
 # define xgboost classifier
-xgb_model = xgb.XGBClassifier(objective="multi:softproba", num_classes=nclass, nthread=ncpus)
+#xgb_model = xgb.XGBClassifier(objective="multi:softproba", num_classes=nclass, num_boost_round=1000)
+
+xgb_model = xgb.XGBClassifier(
+     objective="multi:softproba",
+     num_classes=nclass,
+     n_estimators=1000,  # note: num_boost_round is replaced with n_estimators
+     eval_metric=["merror", "mlogloss"],
+     early_stopping_rounds=10,
+ )
 # xgb_model = xgb.XGBClassifier(objective="multi:softprob", num_classes=nclass, nthread=ncpus)
 
 # train the classifier on the training set
 eval_set = [(X_train, Y_train), (X_test, Y_test)]
-xgb_model.fit(
-    X_train, Y_train, early_stopping_rounds=5, eval_metric=["merror", "mlogloss"], eval_set=eval_set, verbose=True
-)
+print("train model on {} cpus ...".format(ncpus))
+xgb_model.fit(X_train, Y_train, eval_set=eval_set, verbose=True)
+
+#xgb_model.fit(
+#    X_train, Y_train, early_stopping_rounds=10, eval_metric=["merror", "mlogloss"], eval_set=eval_set, verbose=True
+#)
 
 # save the model to a file using pickle
 with open("model_{}.pkl".format(v), "wb") as f:
